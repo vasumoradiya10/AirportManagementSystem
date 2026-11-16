@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroOps — Airport Management System</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════ -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">✈</div>
+        <div>
+          <div class="brand-name">AeroOps</div>
+          <div class="brand-sub">Airport Management System</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div id="utc-clock">—</div>
+        <div id="db-badge" class="db-badge">
+          <span class="pulse-dot" id="pulse-dot"></span>
+          <span id="db-badge-text">Connecting…</span>
+        </div>
+      </div>
+    </div>
+  </header>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       STATS BAR
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="stats-bar">
+    <div class="stats-bar-inner">
+      <div class="stat-chip chip-total">  ✈ <span class="stat-val" id="stat-total">—</span> Flights</div>
+      <div class="stat-chip chip-airborne">🛫 <span class="stat-val" id="stat-airborne">—</span> Airborne</div>
+      <div class="stat-chip chip-boarding">🚶 <span class="stat-val" id="stat-boarding">—</span> Boarding</div>
+      <div class="stat-chip chip-delayed"> ⏱ <span class="stat-val" id="stat-delayed">—</span> Delayed</div>
+      <div class="stat-chip chip-sched">  📋 <span class="stat-val" id="stat-sched">—</span> Scheduled</div>
+      <div class="stat-chip chip-gates">  🚪 <span class="stat-val" id="stat-gates">—</span> Gates Occupied</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB NAVIGATION
+       ═══════════════════════════════════════════════════════════════ -->
+  <nav class="tabs-nav">
+    <div class="tabs-inner">
+      <button class="tab-btn active" data-tab="flights">
+        <span class="tab-icon">✈</span> Flights
+      </button>
+      <button class="tab-btn" data-tab="map">
+        <span class="tab-icon">📡</span> Live Locations & Radar
+      </button>
+      <button class="tab-btn" data-tab="gates">
+        <span class="tab-icon">🚪</span> Gates
+      </button>
+      <button class="tab-btn" data-tab="book">
+        <span class="tab-icon">🎟</span> Book / Pass
+      </button>
+      <button class="tab-btn" data-tab="baggage">
+        <span class="tab-icon">🧳</span> Baggage
+      </button>
+      <button class="tab-btn" data-tab="analytics">
+        <span class="tab-icon">📊</span> Analytics
+      </button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MAIN
+       ═══════════════════════════════════════════════════════════════ -->
+  <main>
+
+    <!-- ══════════════════════════════════════════
+         TAB: FLIGHTS (FIDS)
+         ══════════════════════════════════════════ -->
+    <div id="tab-flights" class="tab-pane active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">✈ Live Flight Board (FIDS)</div>
+          <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="search-fids" placeholder="🔍 Search flight, airline, destination..."
+                   style="width:230px;padding:6px 12px;font-size:0.8rem;background:rgba(255,255,255,0.03);border:1px solid var(--border-card);border-radius:var(--radius);color:var(--text-primary);">
+            <select id="filter-status" style="width:150px;">
+              <option value="">All Statuses</option>
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="BOARDING">Boarding</option>
+              <option value="AIRBORNE">Airborne</option>
+              <option value="DELAYED">Delayed</option>
+              <option value="ARRIVED">Arrived</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <button id="btn-refresh-fids" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Flight</th>
+                <th>Airline</th>
+                <th>Route</th>
+                <th>Departs</th>
+                <th>Arrives</th>
+                <th>Status</th>
+                <th>Gate</th>
+                <th>Delay</th>
+              </tr>
+            </thead>
+            <tbody id="fids-body">
+              <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading flights…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Quick Operations Action: Adjust Flight Delay -->
+      <div class="card" style="margin-top:1rem;">
+        <div class="card-header">
+          <div class="card-title">⏱ Flight Delay & Schedule Adjustment</div>
+        </div>
+        <p class="section-desc">
+          Executes stored procedure <code>sp_handle_flight_delay</code> to update delay minutes, recalculate departure/arrival ETAs, and log audit history to <code>flight_status_audit</code>.
+        </p>
+        <form id="form-delay-flight" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field" style="margin:0;min-width:220px;">
+            <label class="field-label">Flight Instance</label>
+            <select id="delay-flight-id" required>
+              <option value="">Select flight…</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0;width:120px;">
+            <label class="field-label">Delay (Mins)</label>
+            <input type="number" id="delay-mins" value="25" min="0" max="720" required>
+          </div>
+          <div class="field" style="margin:0;flex:1;min-width:200px;">
+            <label class="field-label">Reason / Notes</label>
+            <input type="text" id="delay-reason" value="Late inbound turnaround & ATC congestion" required>
+          </div>
+          <button type="submit" id="btn-delay-submit" class="btn btn-secondary" style="height:38px;">
+            Update Delay
+          </button>
+        </form>
+        <div id="delay-result" style="margin-top:0.75rem;"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TAB: LIVE FLIGHT LOCATIONS & RADAR
+         ══════════════════════════════════════════ -->
+    <div id="tab-map" class="tab-pane">
+
+      <!-- 1. Simple Visual Airspace Schematic Map -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🗺 Simple Global Airspace Corridor Map</div>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <span id="map-airborne-counter" style="font-size:0.75rem;font-family:var(--font-mono);color:var(--purple);font-weight:700;">
+              ● 5 Airborne
+            </span>
+            <button id="btn-map-refresh" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+          </div>
+        </div>
+        <p class="section-desc">
+          Clean, lightweight airspace corridor schematic showing global flight tracks between international hubs.
+        </p>
+        <div class="simple-map-container" id="simple-map-box">
+          <svg id="schematic-map-svg" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet">
+            <!-- Background Grids & World Reference -->
+            <defs>
+              <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.2"/>
+                <stop offset="50%" stop-color="#a855f7" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+              </linearGradient>
+            </defs>
+            <rect width="1000" height="480" fill="#080e1c" rx="10"/>
+            <!-- Grid lines -->
+            <line x1="50" y1="120" x2="950" y2="120" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4 8"/>
+            <line x1="50" y1="240" x2="950" y2="240" stroke="rgba(255,255,255,0.06)" stroke-dasharray="4 8"/>
+            <line x1="50" y1="360" x2="950" y2="360" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4 8"/>
+            <line x1="250" y1="30" x2="250" y2="450" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4 8"/>
+            <line x1="500" y1="30" x2="500" y2="450" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 8"/>
+            <line x1="750" y1="30" x2="750" y2="450" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4 8"/>
+
+            <!-- Route Paths & Planes (injected dynamically by app.js) -->
+            <g id="svg-routes-layer"></g>
+            <g id="svg-airports-layer"></g>
+            <g id="svg-aircraft-layer"></g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 2. Primary Live Flight Location & Telemetry Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📍 Live Flight Location & Telemetry Table</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);" id="tracking-last-ping">
+            Auto-refreshing every 15s…
+          </div>
+        </div>
+        <p class="section-desc">
+          Precise GPS coordinates, current airspace zone, cruising altitude, ground speed, heading, and journey completion in plain text.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Flight & Airline</th>
+                <th>Route</th>
+                <th>Status</th>
+                <th>Live Coordinates</th>
+                <th>Current Location / Airspace</th>
+                <th>Altitude & Speed</th>
+                <th>Heading</th>
+                <th>Journey Progress</th>
+                <th>Dep / Arr UTC</th>
+              </tr>
+            </thead>
+            <tbody id="tracking-table-body">
+              <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading live flight telemetry…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. OpenSky Network Live ADS-B Transponder Radar -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📡 OpenSky Network — Real-Time ADS-B Radar Feed</div>
+          <button id="btn-fetch-opensky" class="btn btn-secondary btn-sm">⚡ Fetch OpenSky Live ADS-B</button>
+        </div>
+        <p class="section-desc">
+          Connects directly to the <strong>OpenSky Network API</strong> to pull live ADS-B receiver transponder signals from commercial flights currently airborne across the globe.
+        </p>
+        <div id="opensky-status-msg" style="margin-bottom:0.75rem;font-size:0.78rem;color:var(--text-muted);">
+          Click the button above to query live global ADS-B transponder packets.
+        </div>
+        <div class="table-wrap" id="opensky-table-wrap" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Callsign</th>
+                <th>Country</th>
+                <th>Live Coordinates</th>
+                <th>Altitude</th>
+                <th>Ground Speed</th>
+                <th>Heading</th>
+                <th>Transponder Status</th>
+              </tr>
+            </thead>
+            <tbody id="opensky-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ══════════════════════════════════════════
+         TAB: GATES
+         ══════════════════════════════════════════ -->
+    <div id="tab-gates" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🚪 Terminal Gate Status</div>
+          <button id="btn-refresh-gates" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+        </div>
+        <div id="gate-grid" class="gate-grid">
+          <div class="empty-state"><div class="empty-icon">🚪</div><div class="empty-text">Loading gates…</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚡ Assign a Gate</div>
+        </div>
+        <p class="section-desc">Uses <code>sp_assign_flight_gate</code> — raises an error if the gate is already occupied or conflicts within a 30-minute buffer window.</p>
+        <form id="form-assign-gate">
+          <div class="field-row field-row-3">
+            <div class="field">
+              <label class="field-label">Flight</label>
+              <select id="assign-flight-id" required>
+                <option value="">Select flight…</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Gate</label>
+              <select id="assign-gate-id" required>
+                <option value="">Select gate…</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Type</label>
+              <select id="assign-type">
+                <option value="DEPARTURE">Departure</option>
+                <option value="ARRIVAL">Arrival</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Assign Gate</button>
+        </form>
+        <div id="gate-assign-result" style="margin-top:0.75rem;"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TAB: BOOK / BOARDING PASS
+         ══════════════════════════════════════════ -->
+    <div id="tab-book" class="tab-pane">
+      <div class="two-col">
+
+        <!-- Book a Seat -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🎟 Book a Seat</div>
+          </div>
+          <form id="form-book-seat">
+            <div class="field">
+              <label class="field-label">Flight</label>
+              <select id="book-flight-id" required></select>
+            </div>
+            <div class="field-row field-row-2">
+              <div class="field">
+                <label class="field-label">First Name</label>
+                <input type="text" id="book-fname" placeholder="John" required>
+              </div>
+              <div class="field">
+                <label class="field-label">Last Name</label>
+                <input type="text" id="book-lname" placeholder="Doe" required>
+              </div>
+            </div>
+            <div class="field-row field-row-2">
+              <div class="field">
+                <label class="field-label">Passport Number</label>
+                <input type="text" id="book-passport" placeholder="P9823101" required>
+              </div>
+              <div class="field">
+                <label class="field-label">Email</label>
+                <input type="email" id="book-email" placeholder="john@example.com" required>
+              </div>
+            </div>
+            <div class="field-row field-row-2">
+              <div class="field">
+                <label class="field-label">Seat Number</label>
+                <input type="text" id="book-seat" placeholder="14A" required>
+              </div>
+              <div class="field">
+                <label class="field-label">Cabin Class</label>
+                <select id="book-class">
+                  <option value="ECONOMY">Economy</option>
+                  <option value="PREMIUM_ECONOMY">Premium Economy</option>
+                  <option value="BUSINESS">Business Class</option>
+                  <option value="FIRST">First Class</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" id="btn-book-submit" class="btn btn-primary btn-full" style="margin-top:0.5rem;">
+              Book Seat
+            </button>
+          </form>
+          <div id="book-result" style="margin-top:0.75rem;"></div>
+        </div>
+
+        <!-- PNR Lookup & Boarding Pass -->
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🔍 Retrieve Boarding Pass</div>
+            </div>
+            <form id="form-lookup-pnr" style="display:flex;gap:0.6rem;">
+              <input type="text" id="lookup-pnr-input" value="AUKKAR" placeholder="6-char PNR e.g. AUKKAR"
+                     maxlength="6" style="flex:1;font-weight:700;text-transform:uppercase;font-family:var(--font-mono);">
+              <button type="submit" class="btn btn-secondary">Retrieve</button>
+            </form>
+            <div style="margin-top:0.75rem;">
+              <div style="font-size:0.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:0.35rem;">
+                Confirmed Bookings (Click to Load):
+              </div>
+              <div id="pnr-chips-container" style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('AUKKAR')">🎫 AUKKAR</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('87ZQJN')">🎫 87ZQJN</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('L44P69')">🎫 L44P69</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('8JCFJB')">🎫 8JCFJB</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('5SNZ7P')">🎫 5SNZ7P</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-family:var(--font-mono);font-size:0.72rem;padding:3px 8px;" onclick="window.lookupPnr('DUH2X7')">🎫 DUH2X7</button>
+              </div>
+            </div>
+          </div>
+          <div id="boarding-pass-container"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TAB: BAGGAGE
+         ══════════════════════════════════════════ -->
+    <div id="tab-baggage" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🧳 Baggage Tracking & Checkpoint Radar</div>
+          <button id="btn-refresh-baggage-list" class="btn btn-secondary btn-sm">⟳ Refresh Bags</button>
+        </div>
+        <p class="section-desc">
+          Track luggage from check-in through explosive screening, container ramp loading, and baggage claim carousel.
+          Enter a <strong>Luggage Tag Number</strong> (e.g. <code>BAG-AI-88910</code>) or a <strong>Booking PNR</strong>.
+        </p>
+
+        <!-- Search Form -->
+        <form id="form-baggage" style="display:flex;gap:0.65rem;max-width:540px;margin-bottom:1rem;">
+          <input type="text" id="input-bag-tag" value="BAG-AI-88910"
+                 placeholder="Luggage Tag (e.g. BAG-AI-88910) or PNR" style="flex:1;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;">
+          <button type="submit" class="btn btn-primary">Track Luggage</button>
+        </form>
+
+        <!-- Active Luggage Quick Select Chips -->
+        <div style="margin-bottom:1.25rem;">
+          <div style="font-size:0.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:0.4rem;">
+            Active Checked Luggage in Airport:
+          </div>
+          <div id="baggage-chips-container" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span style="font-size:0.75rem;color:var(--text-muted);">Loading checked bags…</span>
+          </div>
+        </div>
+
+        <!-- Result Timeline -->
+        <div id="baggage-result"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TAB: ANALYTICS (OPERATIONS INTELLIGENCE)
+         ══════════════════════════════════════════ -->
+    <div id="tab-analytics" class="tab-pane">
+
+      <!-- Route Pathfinder -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🌐 Route Pathfinder</div>
+        </div>
+        <p class="section-desc">Finds all direct and connecting itineraries using a PostgreSQL <strong>recursive CTE</strong> (<code>WITH RECURSIVE flight_itineraries</code>).</p>
+        <form id="form-route" style="display:flex;gap:0.65rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
+          <div class="field" style="margin:0;">
+            <label class="field-label">Origin (IATA)</label>
+            <input type="text" id="route-origin" value="DEL" maxlength="3"
+                   style="width:90px;text-transform:uppercase;font-family:var(--font-mono);font-weight:700;">
+          </div>
+          <div style="font-size:1.3rem;color:var(--text-muted);padding-bottom:4px;">→</div>
+          <div class="field" style="margin:0;">
+            <label class="field-label">Destination (IATA)</label>
+            <input type="text" id="route-dest" value="JFK" maxlength="3"
+                   style="width:90px;text-transform:uppercase;font-family:var(--font-mono);font-weight:700;">
+          </div>
+          <button type="submit" class="btn btn-primary">Find Routes</button>
+        </form>
+        <div id="route-results"></div>
+      </div>
+
+      <!-- Airline OTP -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📈 Airline On-Time Performance (OTP)</div>
+          <button id="btn-refresh-otp" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+        </div>
+        <p class="section-desc">Aggregated operational on-time metrics powered by PostgreSQL <code>mv_airline_performance</code> <strong>materialized view</strong>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Airline</th><th>IATA</th><th>Scheduled Flights</th>
+                <th>On Time</th><th>Delayed</th><th>Avg Delay</th><th>OTP Rating</th>
+              </tr>
+            </thead>
+            <tbody id="otp-body">
+              <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading airline on-time performance…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Aircraft Turnaround (Window Functions) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⏱ Aircraft Turnaround Analytics</div>
+          <button id="btn-refresh-analytics" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+        </div>
+        <p class="section-desc">Uses <strong>LAG / LEAD window functions</strong> to calculate ground turnaround intervals between consecutive rotations of the same aircraft tail.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tail #</th><th>Aircraft</th><th>Flight</th><th>Route</th>
+                <th>Turnaround</th><th>Assessment</th>
+              </tr>
+            </thead>
+            <tbody id="turnaround-body">
+              <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading aircraft rotation analytics…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Terminal & Gate Capacity Analytics -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🚪 Terminal & Gate Capacity Utilization</div>
+          <button id="btn-refresh-gate-analytics" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+        </div>
+        <p class="section-desc">Real-time gate occupancy ratio and capacity breakdown across all terminals.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Terminal</th><th>Code</th><th>Total Gates</th>
+                <th>Occupied</th><th>Reserved</th><th>Available</th><th>Occupancy %</th>
+              </tr>
+            </thead>
+            <tbody id="gate-analytics-body">
+              <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading terminal capacity metrics…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /tab-analytics -->
+
+  </main>
+
+  <script type="module" src="/static/js/api.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
