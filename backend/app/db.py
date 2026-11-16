@@ -38,7 +38,12 @@ def check_connection() -> bool:
         conn.close()
         _is_connected = True
         return True
-    except Exception:
+    except Exception as e:
+        print(
+            f"DATABASE CONNECTION ERROR: {type(e).__name__}: {e}",
+            file=sys.stderr,
+            flush=True
+        )
         _is_connected = False
         return False
 
@@ -58,7 +63,12 @@ def get_connection():
             row_factory=dict_row,
             autocommit=True
         )
-    except Exception:
+    except Exception as e:
+        print(
+            f"DATABASE QUERY CONNECTION ERROR: {type(e).__name__}: {e}",
+            file=sys.stderr,
+            flush=True
+        )
         return None
 
 
